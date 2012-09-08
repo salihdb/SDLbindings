@@ -25,36 +25,37 @@
  */
 module sdlmini;
 
-public import std.math, std.random;
+public import std.conv, std.math, std.random;
 
 alias SDL_UpperBlit SDL_BlitSurface;
 
 /********************************************************* Some SDL Functions */
 extern(C) { 
-  int SDL_UpperBlit(SDL_Surface *src, SDL_Rect *srcrect,
-                    SDL_Surface *dst, SDL_Rect *dstrect);
-  int SDL_SetColorKey(SDL_Surface *surface, uint flag, uint key);
-  int SDL_SetAlpha(SDL_Surface* surface, uint flags, ubyte alpha);
+  int SDL_UpperBlit (SDL_Surface *src, SDL_Rect *srcrect,
+                     SDL_Surface *dst, SDL_Rect *dstrect);
+  int SDL_SetColorKey (SDL_Surface *surface, uint flag, uint key);
+  int SDL_SetAlpha (SDL_Surface* surface, uint flags, ubyte alpha);
   int SDL_FillRect (SDL_Surface *dst, SDL_Rect *dstrect, uint color);
-  int SDL_Flip(SDL_Surface *screen);
-  int SDL_Init(uint flags);
-  int SDL_PollEvent(SDL_Event *event);
-
-  SDL_Surface *SDL_SetVideoMode(int width, int height, int bpp, uint flags);
-  SDL_Surface *SDL_DisplayFormat(SDL_Surface *surface);
-  SDL_Surface *SDL_DisplayFormatAlpha(SDL_Surface *surface);
-  SDL_Surface *SDL_CreateRGBSurface(uint flags, int width, int height, int depth,
-                                    uint Rmask, uint Gmask, uint Bmask, uint Amask);
-  void SDL_Quit();
-  void SDL_Delay(uint ms);
-  void SDL_FreeSurface(SDL_Surface *surface);
-  void SDL_UpdateRect(SDL_Surface *screen, int x, int y, uint w, uint h);
-  void SDL_WM_SetCaption(const char *title, const char *icon);
+  int SDL_Flip (SDL_Surface *screen);
+  int SDL_Init (uint flags);
+  int SDL_PollEvent (SDL_Event *event);
+  uint SDL_GetTicks ();
+  
+  SDL_Surface *SDL_SetVideoMode (int width, int height, int bpp, uint flags);
+  SDL_Surface *SDL_DisplayFormat (SDL_Surface *surface);
+  SDL_Surface *SDL_DisplayFormatAlpha (SDL_Surface *surface);
+  SDL_Surface *SDL_CreateRGBSurface (uint flags, int width, int height, int depth,
+                                     uint Rmask, uint Gmask, uint Bmask, uint Amask);
+  void SDL_Quit ();
+  void SDL_Delay (uint ms);
+  void SDL_FreeSurface (SDL_Surface *surface);
+  void SDL_UpdateRect (SDL_Surface *screen, int x, int y, uint w, uint h);
+  void SDL_WM_SetCaption (const char *title, const char *icon);
 }
   enum uint SDL_INIT_EVERYTHING  = 0x0000FFFF;
-  enum uint SDL_SWSURFACE  = 0x00000000;  /* Surface is in system memory */
-  enum uint SDL_HWSURFACE  = 0x00000001;  /* Surface is in video memory */
-  enum uint SDL_DOUBLEBUF  = 0x40000000;  /* Set up double-buffered video mode */
+  enum uint SDL_SWSURFACE  = 0x00000000;  /* Surface is in system memory      */
+  enum uint SDL_HWSURFACE  = 0x00000001;  /* Surface is in video memory       */
+  enum uint SDL_realBUF    = 0x40000000;  /* Set up real-buffered video mode  */
   enum uint SDL_FULLSCREEN = 0x80000000;  /* Surface is a full screen display */
   enum uint SDLK_ESCAPE    = 27; 
   enum : ubyte {
@@ -68,6 +69,7 @@ extern(C) {
     SDL_KeyboardEvent key;
     SDL_SysWMEvent syswm;
   }
+
   struct SDL_KeyboardEvent {
     ubyte type;                /* SDL_KEYDOWN or SDL_KEYUP */
     ubyte which;               /* The keyboard device index */
@@ -136,7 +138,7 @@ extern(C) struct SDL_SysWMmsg;  // İlginçtir, yine de extern(C) şart değil!
 */
 class draw {
   int w, h;
-  SDL_Surface* scr;
+  static SDL_Surface* scr;
 
   this (int width, int height, string name, clr color=clr.white) {
     w = width;
@@ -147,30 +149,85 @@ class draw {
     //SDL_Flip(scr); // iyi olmuyor, sanki! **** GEREKİRSE AÇ ****
   }
 
+  ~this() { SDL_Quit(); }
+
+public:
+
 /******************** Zemin Boyar ********************/
   
-  void setBackground(clr color) {
+  void setBackground (clr color) {
     SDL_FillRect(scr, &scr.clip_rect, color);
   }
 
 /******************** Benek Boyar ********************/  
 
-  void setPixel(int x, int y, int c = int.max) {
-    uint *pixel = cast(uint*)scr.pixels + y * scr.pitch/4 + x;
+  void setPixel (int x, int y, clr c=clr.white) {
+    uint * ptr = cast(uint *)scr.pixels;
+    int offset = abs(y) * scr.w;// * (scr.pitch / 4);
+    ptr[offset + abs(x) ] = c;/*
+    uint *pixel = cast(uint *)scr.pixels + y * scr.pitch/4 + x;
          *pixel = c; /* pixel demek
                       * benek demektir,
                       * benek demek
                       * renkli görmektir...:)*/
   }
 
+/**************** Benek Rengini Verir ****************/  
+
+  uint getPixel (int x, int y, SDL_Surface *surface = this.scr) {
+    uint *pixel = cast(uint *)surface.pixels;
+    
+    return pixel[ ( abs(y) * surface.w ) + abs(x) ];
+  }
+
+/**************** Renkleri Ters Çevirir ****************/ 
+
+  void invertColor (int tersle=0, bool tersten_mi=false, clr neyle=clr.white) {
+    int _x, _y;
+    bool yaz;
+    if(tersten_mi) { _x = w - 1; _y = h - 1; }
+    for(int x; x < w; x++) {
+      yaz = true;
+      for(int y; y < h; y++) {
+        clr benek = cast(clr)getPixel(_x-x, _y-y);
+        if(!benek) yaz = false;
+        else if(tersle == 1) yaz = true;
+        if(tersle == 2) yaz = true;
+        if(yaz) setPixel(_x-x, _y-y, tersle ? neyle ^ benek : neyle);
+      }
+    }
+  }
+  
+/**************** Çizgi Rengiyle Boyar ****************/
+ 
+  void fillPolygon (clr çizgiRengi, ) {
+  
+    /* Alttaki ilk satır uzun açıklamayı gerekli kılıyor:
+     * Çizim yapılan renk ile (burada 'rengi' oluyor) her şeyi
+     * XOR'larken çizim rengi ziyah zemin rengine dönüyor!
+     */
+    invertColor(2, false, çizgiRengi); // her şeyi "rengi" ile XOR'la
+    invertColor(0, false, clr.blue);   // üstten siyah görene kadar beyaza boya
+    invertColor(0, true, clr.blue);    // alttan siyah görene kadar beyaza boya
+    invertColor(1, false, clr.blue);   // zemin rengi hariç her şeyi XOR'la
+    invertColor(1, false, clr.blue);   // zemin rengi hariç her şeyi XOR'la
+    /*
+     * Üstteki son iki satır içinde, sanırım açıklama gerek...:)
+     * İlk satırda zemin rengine dönen çizit, ikinci XOR'lamada
+     * zemin rengi hariç işlem gördüğü ve işlem sonucu zemin rengi
+     * ile aynı olduğu için kaynaşıyorlar. Üçüncü XOR'lamada ise
+     * çizit içi istenen değere boyanmış oluyor...
+     */
+  }
+  
 /******************** Çizgi Çizer ********************/
 
-  void line(int x0, int y0, int x1, int y1, int c = int.max) {
+  void line (int x0, int y0, int x1, int y1, clr c=clr.white) {
     int dx =  abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
     int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
     int err = dx + dy, e2;
   
-    while(1) {
+    while(true) {
       setPixel(x0, y0, c);
       if(x0 == x1 && y0 == y1) break;
       e2 = 2 * err;
@@ -181,14 +238,26 @@ class draw {
 
 /******************* Çokgen Çizer *******************/
 
-  void polygon(double x, double y, double r, int sides, int c=int.max, int a=0) {
-    double edge = PI*2 / sides; 
+  void polygon (real x, real y, real r, int sides, clr c=clr.white, int a=0) {
+    real edge = PI*2 / sides; 
     int x0, y0;
     for(int i = 0; i <= sides; i++) {
-      double a1 = cos(edge*i) * r;
-      double a2 = sin(edge*i) * r;
-      int x1 = cast(int)(a == 270 ? x + a2 : a == 180 ? x + a1 : a == 90 ? x - a2 : x - a1);
-      int y1 = cast(int)(a == 270 ? y + a1 : a == 180 ? y + a2 : a == 90 ? y - a1 : y - a2);
+      real a1 = cos(edge*i) * r;
+      real a2 = sin(edge*i) * r;
+      int x1 = cast(int)(a == 270 ?
+                         x + a2 :
+                           a == 180 ?
+                           x + a1 :
+                             a == 90 ?
+                             x - a2 :
+                               x - a1);
+      int y1 = cast(int)(a == 270 ?
+                         y + a1 :
+                           a == 180 ?
+                           y + a2 :
+                             a == 90 ?
+                             y - a1 :
+                               y - a2);
       if(i) line(x0, y0, x1, y1, c);
       x0 = x1; y0 = y1;
     }
@@ -196,20 +265,20 @@ class draw {
 
 /******************** Yay Çizer ********************/
 
-  void curve(int x0, int y0, int x1, int y1, int x2, int y2, int c = int.max) {                            
+  void curve (int x0, int y0, int x1, int y1, int x2, int y2, clr c=clr.white) {
     int sx = x2-x1, sy = y2-y1;
     long xx = x0-x1, yy = y0-y1, xy;            /* relative values for checks */
-    double dx, dy, err, cur = xx*sy-yy*sx;                       /* curvature */
+    real dx, dy, err, cur = xx*sy-yy*sx;                         /* curvature */
     // assert(xx*sx <= 0 && yy*sy <= 0);  /* sign of gradient must not change */
-    if (sx*cast(long)sx+sy*cast(long)sy > xx*xx+yy*yy)
+    if(sx*cast(long)sx+sy*cast(long)sy > xx*xx+yy*yy)
     {                                               /* begin with longer part */ 
       x2 = x0; x0 = sx+x1; y2 = y0; y0 = sy+y1; cur = -cur;     /* swap P0 P2 */
     }  
-    if (cur != 0) {                                       /* no straight line */
+    if(cur != 0) {                                        /* no straight line */
       xx += sx; xx *= sx = x0 < x2 ? 1 : -1;              /* x step direction */
       yy += sy; yy *= sy = y0 < y2 ? 1 : -1;              /* y step direction */
       xy = 2*xx*yy; xx *= xx; yy *= yy;             /* differences 2nd degree */
-      if (cur*sx*sy < 0) {                              /* negated curvature? */
+      if(cur*sx*sy < 0) {                               /* negated curvature? */
         xx = -xx; yy = -yy; xy = -xy; cur = -cur;
       }
       dx = 4.0*sy*cur*(x1-x0)+xx-xy;                /* differences 1st degree */
@@ -217,32 +286,31 @@ class draw {
       xx += xx; yy += yy; err = dx+dy+xy;                   /* error 1st step */    
       do {                              
         setPixel(x0, y0, c);                                    /* plot curve */
-        if (x0 == x2 && y0 == y2) return;     /* last pixel -> curve finished */
+        if(x0 == x2 && y0 == y2) return;      /* last pixel -> curve finished */
         y1 = 2*err < dx;                     /* save value for test of y step */
-        if (2*err > dy) { x0 += sx; dx -= xy; err += dy += yy; }    /* x step */
-        if (    y1    ) { y0 += sy; dy -= xy; err += dx += xx; }    /* y step */
+        if(2*err > dy) { x0 += sx; dx -= xy; err += dy += yy; }     /* x step */
+        if(    y1    ) { y0 += sy; dy -= xy; err += dx += xx; }     /* y step */
       } while (dy < 0 && dx > 0);      /* gradient negates -> algorithm fails */
     }
     // line(x0,y0, x2,y2);                      /* plot remaining part to end */
   }/*  ^--- BU SORUNLU, KAPAYIP ZIT YÖNEYLERLE 2 KERE ÇAĞIRMAK MANTIKLI. FIXME*/
 
 /************** İçi Dolu Çember Çizer **************/  
-
-  void yuvarlak(int x, int y, int r, int c = int.max) {
-    int len, ofs;
-    for(int i = 0; i < 2 * r; i++) {
-      len = cast(int)sqrt(cast(float)(r ^^ 2 - (r - i) ^^ 2));
-      ofs = (y + i) * (scr.pitch / 4) + r - len + x;
-      len*=2;
-      for(int j = 0; j < len; j++) {
-        (cast(uint*) scr.pixels)[ofs + j] = c;
+    void yuvarlak (int x, int y, int r, clr c=clr.white, bool rOffset=false) {
+      int len, ofs;
+      for(int i = 0; i < 2 * r; i++) {
+        len = cast(int)sqrt(cast(float)(r ^^ 2 - (r - i) ^^ 2));
+        /* TODO */
+        if(rOffset) ofs = (y - r + i) * (scr.pitch / 4) + x - len;
+        ofs = (y + i) * (scr.pitch / 4) + r - len + x;
+        /* TODO */
+        for(int j = 0; j < len*2; j++) (cast(uint*) scr.pixels)[ofs + j] = c;
       }
     }
-  }
-  
+
 //************************* HAYATI KOLAYLAŞTIRAN İŞLEV *************************
 
-  bool keyEvent(int type) {
+  bool keyEvent (int type) {
     SDL_Flip(scr); // iyi oluyor, gibi! **** GEREKİRSE KAPAT ****
   
     bool STOP;
@@ -275,10 +343,70 @@ class draw {
     }   // v--- TUŞA BASILMADIYSA DEVAM / 2. ESC'de ---^
     return true;
   }
+
+  void dotPrnNum (T)(T number, clr color, int radius = 1, /*   >=1   */
+                                          int dotLen = 2, /*   >0    */
+                                          int chrLen = 0, /*   +/-   */
+                                          int x = 0, int y = 0) {
+    immutable dts = radius * dotLen;
+    int x_chr = dts + x; int y_chr = dts + y;
+    int x_tmp;
+    
+    char[] chr = to!string(number).dup;
+    byte[] rakam;
+    byte[][] rakamlar = [
+      [  62, 127,  99,  99,  99,  99,  99,  99, 127,  62 ], // sıfır
+      [  24,  28,  30,  24,  24,  24,  24,  24,  24, 126 ], // bir
+      [  62, 127,  99,  96,  48,  24,  12,   6, 127, 127 ], // iki
+      [  62, 127,  96,  96,  56, 120,  96,  99, 127,  62 ], // üç
+      [  48,  56,  60,  54,  51, 127, 127,  48,  48,  48 ], // dört
+      [ 127, 127,   3,   3, 127, 126,  96,  99, 127,  62 ], // beş
+      [  62, 127,  99,   3,  63, 127,  99,  99, 127,  62 ], // altı
+      [ 127, 127,  96,  48,  24,  12,  12,  12,  12,  12 ], // yedi
+      [  62, 127,  99,  99,  62, 127,  99,  99, 127,  62 ], // sekiz
+      [  62, 127,  99,  99, 127, 126,  96,  99, 127,  62 ], // dokuz
+      [   0,   0,   0,  24,  24,   0,   0,  24,  24,   0 ], // :
+      [   0,   0,   0,   0,   0,   0,   0,   0,  24,  24 ], // .
+      [   0,   0,  96,  48,  24,  12,   6,   3,   0,   0 ], // /  
+    ];
+
+    foreach(c; chr) {
+      if(c > 47 && c < 59) {
+        int i = to!int(c) - 48; 
+        rakam = rakamlar[i];
+      } else if(c == 46) rakam = rakamlar[11];
+      else if(c == 47) rakam = rakamlar[12];
+      else continue;
+      foreach(satır; rakam) {
+        x_tmp = x_chr;
+        foreach(bas; sütun(satır)) {
+          if(bas) yuvarlak(x_chr, y_chr, radius, color);
+          x_chr += dts;
+        }
+        x_chr = x_tmp;
+        y_chr += dts;
+      }
+      x_chr += (10 * dts) + chrLen;
+      y_chr = dts + y;
+    }
+  }
+private:
+     auto sütun (byte veri) {
+      bool[8] sonuç;
+      for(int i = 0; i < 8; i++) {
+        sonuç[i] = 1 << i & veri ?
+                   true :
+                   false;
+      }
+      return sonuç;
+    }
 }
+
+uint toRGB(int r, int g, int b) { return (r<<16) | (g<<8) | b; }
 
 enum clr : uint {
   white  = 0xFFFFFF,
+  Pantone186 = toRGB (227, 10, 23), //E3-0A-17
   red    = 0xFF0000,
   yellow = 0xFFFF00,
   green  = 0x00FF00,
@@ -294,11 +422,12 @@ debug {
   void main() {
     int x, y, s, i;
     uint[] colors; with(clr) {
-           colors = [ black, blue, cyan, green, yellow, red, white ];
+           colors = [ blue, cyan, green, yellow, red, white ];
     }
+    int[] rotate = [ 90, 120, 180 ];
     SDL_Init(SDL_INIT_EVERYTHING);
     
-    with( new draw(640, 480, "Working...") ) {
+    with( new draw(640, 480, "Working...", clr.black) ) {
       assert(scr != null);
       do {
         foreach(c; colors) {
@@ -306,7 +435,12 @@ debug {
           x = uniform(64, w-64);
           y = uniform(64, h-64);
           s = uniform(3, 6);
-          foreach(r; 0..64) polygon(x, y, r, s, c);
+          yuvarlak(x+30, y+30, 20, c);
+          dotPrnNum!int(i, clr.Pantone186, 1, 2, 0, x+30, y+40);
+          int rot = rotate[uniform(0, 2)];
+          foreach(r; 0..64) {
+            polygon(x, y, r, s, c, rot);
+          }
         }
         if(i > 33) {
           setBackground(clr.black);
@@ -314,7 +448,6 @@ debug {
         }
       } while(keyEvent(2));
     }
-    SDL_Quit();
   }
 }
-//v1.1
+//v1.2
