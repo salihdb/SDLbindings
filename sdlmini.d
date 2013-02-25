@@ -296,7 +296,7 @@ public:
   }/*  ^--- BU SORUNLU, KAPAYIP ZIT YÖNEYLERLE 2 KERE ÇAĞIRMAK MANTIKLI. FIXME*/
 
 /************** İçi Dolu Çember Çizer **************/  
-    void yuvarlak (int x, int y, int r, clr c=clr.white, bool rOffset=false) {
+    void circle(int x, int y, int r, clr c=clr.white, bool rOffset=false) {
       int len, ofs;
       for(int i = 0; i < 2 * r; i++) {
         len = cast(int)sqrt(cast(float)(r ^^ 2 - (r - i) ^^ 2));
@@ -380,7 +380,7 @@ public:
       foreach(satır; rakam) {
         x_tmp = x_chr;
         foreach(bas; sütun(satır)) {
-          if(bas) yuvarlak(x_chr, y_chr, radius, color);
+          if(bas) circle(x_chr, y_chr, radius, color);
           x_chr += dts;
         }
         x_chr = x_tmp;
@@ -435,7 +435,7 @@ debug {
           x = uniform(64, w-64);
           y = uniform(64, h-64);
           s = uniform(3, 6);
-          yuvarlak(x+30, y+30, 20, c);
+          circle(x+30, y+30, 20, c);
           dotPrnNum!int(i, clr.Pantone186, 1, 2, 0, x+30, y+40);
           int rot = rotate[uniform(0, 2)];
           foreach(r; 0..64) {
